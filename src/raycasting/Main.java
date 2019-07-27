@@ -24,7 +24,9 @@ import javax.swing.Timer;
 
 import raycasting.math.Angle;
 import raycasting.math.Matrix3D;
+import raycasting.math.Point2D;
 import raycasting.math.Point3D;
+import raycasting.math.Triangle2DPair;
 import raycasting.math.Vector3D;
 import raycasting.rendering.Object3D;
 import raycasting.rendering.RenderMath;
@@ -127,14 +129,14 @@ public class Main {
 		Angle tFov = null;
 		
 		Vector3D[][] rays = null;
-//		double pixDist;
-//		Point3D screenCenter = null;
+		double pixDist;
+		Point3D screenCenter = null;
 		
-//		Matrix3D projectionMatrix = null;
-//		Point2D projectedOrigin = null;
+		Matrix3D projectionMatrix = null;
+		Point2D projectedOrigin = null;
 		
 		Object3D tObj = null;
-//		Map<Triangle, Triangle2D> projection = null;
+		Map<Triangle, Triangle2DPair> projection = null;
 		Map<Triangle, Integer> quads = null;
 		Set<Triangle> visibleTris = null;
 		
@@ -159,21 +161,21 @@ public class Main {
 					tFov = fov;
 					
 					rays = RenderMath.getRays(tOrigin, tFacing, tUp, WIDTH, HEIGHT, tFov);
-//					pixDist = (WIDTH/2)/tFov.mult(0.5).tan();
-//					screenCenter = tOrigin.add(tFacing.scalarMultiply(RenderMath.NEAR));
+					pixDist = (WIDTH/2)/tFov.mult(0.5).tan();
+					screenCenter = tOrigin.add(tFacing.scalarMultiply(RenderMath.NEAR));
 					
-//					projectionMatrix = RenderMath.getRotation(tFacing, new Vector3D(0, 0, 1));
-//					projectionMatrix = RenderMath.getRotation(projectionMatrix.mult(tRight), new Vector3D(1, 0, 0)).mult(projectionMatrix);
-//					projectionMatrix = projectionMatrix.scalarMultiply(pixDist/RenderMath.NEAR);
+					projectionMatrix = RenderMath.getRotation(tFacing, new Vector3D(0, 0, 1));
+					projectionMatrix = RenderMath.getRotation(projectionMatrix.mult(tRight), new Vector3D(1, 0, 0)).mult(projectionMatrix);
+					projectionMatrix = projectionMatrix.scalarMultiply(pixDist/RenderMath.NEAR);
 					
-//					Vector3D vProjCenter = projectionMatrix.mult(new Vector3D(screenCenter));
-//					projectedOrigin = new Point2D(vProjCenter.getX(), vProjCenter.getY());
-//					projectedOrigin = new Point2D(vProjCenter.getX() - WIDTH/2, vProjCenter.getY() - HEIGHT/2);
+					Vector3D vProjCenter = projectionMatrix.mult(new Vector3D(screenCenter));
+					projectedOrigin = new Point2D(vProjCenter.getX(), vProjCenter.getY());
+					projectedOrigin = new Point2D(vProjCenter.getX() - WIDTH/2, vProjCenter.getY() - HEIGHT/2);
 				}
 				
 				if(trisChanged) {
 					tObj = obj;
-//					projection = new HashMap<>();
+					projection = new HashMap<>();
 					quads = new HashMap<>();
 					visibleTris = new HashSet<>();
 					
@@ -214,27 +216,9 @@ public class Main {
 //					System.out.println(projectedOrigin);
 					
 					for(Triangle t : visibleTris) {
-//						Vector3D sv0 = RenderMath.project(screenCenter.to(t.getVertex(0)), tFacing);
-//						Vector3D sv1 = RenderMath.project(screenCenter.to(t.getVertex(1)), tFacing);
-//						Vector3D sv2 = RenderMath.project(screenCenter.to(t.getVertex(2)), tFacing);
-//						double d0 = t.getVertex(0).sub(sv0).distance(origin);
-//						double d1 = t.getVertex(1).sub(sv1).distance(origin);
-//						double d2 = t.getVertex(2).sub(sv2).distance(origin);
-//						sv0 = new Vector3D(screenCenter.add(sv0.scalarMultiply(1/((d0==0?RenderMath.EPSILON:d0)/RenderMath.NEAR))));
-//						sv1 = new Vector3D(screenCenter.add(sv1.scalarMultiply(1/((d1==0?RenderMath.EPSILON:d1)/RenderMath.NEAR))));
-//						sv2 = new Vector3D(screenCenter.add(sv2.scalarMultiply(1/((d2==0?RenderMath.EPSILON:d2)/RenderMath.NEAR))));
-//						sv0 = projectionMatrix.mult(sv0);
-//						sv1 = projectionMatrix.mult(sv1);
-//						sv2 = projectionMatrix.mult(sv2);
-//						Point2D pv0 = new Point2D(new Point2D(sv0.getX(), sv0.getY()).from(projectedOrigin));
-//						Point2D pv1 = new Point2D(new Point2D(sv1.getX(), sv1.getY()).from(projectedOrigin));
-//						Point2D pv2 = new Point2D(new Point2D(sv2.getX(), sv2.getY()).from(projectedOrigin));
-//						pv0 = new Point2D(pv0.getX(), HEIGHT-pv0.getY());
-//						pv1 = new Point2D(pv1.getX(), HEIGHT-pv1.getY());
-//						pv2 = new Point2D(pv2.getX(), HEIGHT-pv2.getY());
-//						projection.put(t, new Triangle2D(pv0, pv1, pv2));
-//						System.out.println(t.getVertex(0)+" "+t.getVertex(1)+" "+t.getVertex(2));
-//						System.out.println(pv0+" "+pv1+" "+pv2);
+						Triangle2DPair projected = RenderMath.projectClip(
+								t, screenCenter, tFacing, tOrigin, projectionMatrix, projectedOrigin, HEIGHT);
+						projection.put(t, projected);
 						
 						int quad = 0;
 						
@@ -313,11 +297,12 @@ public class Main {
 					for(int x=0; x<WIDTH; x++) {
 						for(int y=0; y<HEIGHT; y++) {
 							int quad = 1 << (((HEIGHT-y)/(HEIGHT/4) << 2) | (x/(WIDTH/4)));
+							Point2D location = new Point2D(x, y);
 							
 							Map<Triangle, Point3D> hits = new HashMap<>();
 							
 							for(Triangle t : visibleTris) {
-								if((quads.get(t) & quad) != 0) {
+								if((quads.get(t) & quad) != 0 && projection.get(t).pointInside(location)) {
 									hits.put(t, RenderMath.intersectRayTriangle(tOrigin, rays[x][y], t));
 								}
 							}
